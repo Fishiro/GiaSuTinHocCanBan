@@ -34,22 +34,22 @@ Dự án dùng mô hình **2 tầng (Gateway pattern)**:
 Trình duyệt (Vercel)
         │  HTTPS
         ▼
-┌─────────────────────┐
-│  Node.js (server.js)│  ← Gateway: phục vụ frontend tĩnh,
+┌──────────────────────┐
+│  Node.js (server.js) │  ← Gateway: phục vụ frontend tĩnh,
 │      Express         │    CORS, rate-limit, forward request
 └─────────┬────────────┘
           │  localhost:5000 (nội bộ)
           ▼
-┌─────────────────────┐
-│ Python (server.py)  │  ← AI Backend: xác minh reCAPTCHA,
-│      Flask           │    truy vấn RAG, gọi Gemini
+┌──────────────────────┐
+│  Python (server.py)  │  ← AI Backend: xác minh reCAPTCHA,
+│       Flask          │    truy vấn RAG, gọi Gemini
 └─────────┬────────────┘
           │
           ▼
-   ┌─────────────┐      ┌──────────────┐
-   │ FAISS Index │      │  Gemini API  │
-   │ (vector DB) │      │ (chat + embed)│
-   └─────────────┘      └──────────────┘
+   ┌─────────────┐      ┌────────────────┐
+   │ FAISS Index │      │   Gemini API   │
+   │ (vector DB) │      │ (chat + embed) │
+   └─────────────┘      └────────────────┘
 ```
 
 **Vì sao tách 2 tầng thay vì 1 backend duy nhất?**
