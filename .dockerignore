@@ -1,0 +1,9 @@
+node_modules/
+python-env/
+venv/
+.git/
+.env
+faiss_index/
+scripts/learning_data/
+test_xlsx/
+*.zip

@@ -106,23 +106,21 @@ def serve_frontend(path):
     return send_from_directory("public", "index.html")
 
 
-# --- Cấu hình Gemini (Hỗ trợ Fallback) ---
+# --- Cấu hình Gemini (Hỗ trợ Fallback, không làm crash server nếu chỉ test Tab Thi Đấu) ---
 api_keys_list = [
     os.getenv("GEMINI_API_KEY_1"),
     os.getenv("GEMINI_API_KEY_2")
 ]
 
-# Lọc ra danh sách các key hợp lệ (không bị None hoặc chuỗi rỗng)
 VALID_API_KEYS = [k for k in api_keys_list if k]
 
-if not VALID_API_KEYS:
-    raise ValueError(
-        "Không tìm thấy bất kỳ GEMINI_API_KEY nào. Hãy kiểm tra file .env!")
+if VALID_API_KEYS:
+    clients = [genai.Client(api_key=key) for key in VALID_API_KEYS]
+else:
+    print("⚠️ [Cảnh báo] Chưa cấu hình GEMINI_API_KEY trong .env. Tab Gia Sư tạm tắt, Tab AI Thi Đấu vẫn hoạt động bình thường.")
+    clients = []
 
-# Khởi tạo sẵn các client tương ứng với từng key
-clients = [genai.Client(api_key=key) for key in VALID_API_KEYS]
-current_key_index = 0  # Biến toàn cục theo dõi key đang active
-# BẢO MẬT: tránh race condition khi nhiều request cùng fallback
+current_key_index = 0
 key_index_lock = threading.Lock()
 
 # --- BẢO MẬT: Secret nội bộ giữa Node gateway <-> Flask backend ---
@@ -385,6 +383,10 @@ class FallbackEmbeddings(Embeddings):
 
 
 def load_vectorstore():
+    if not VALID_API_KEYS:
+        vectorstore_ready.set()
+        return
+
     global retriever, vectorstore_error
     print("🔄 [Background] Đang nạp Vector DB (faiss_index)...")
     try:
