@@ -1,3 +1,4 @@
+from mcp_excel_engine import ContestPipelineEngine
 import os
 import time
 import threading
@@ -780,6 +781,62 @@ def get_local_ip():
         if s:
             s.close()
     return ip
+
+
+# ============================================================
+# MỞ RỘNG: API DÀNH RIÊNG CHO TAB THI ĐẤU AI (CHỦ ĐỀ 2 - EXCEL QA)
+# Bảo toàn 100% logic RAG Gemini cũ ở trên, tách biệt hoàn toàn.
+# ============================================================
+
+contest_engine = ContestPipelineEngine()
+
+
+@app.route("/api/contest/config", methods=["GET"])
+def contest_config():
+    """Trả về thông tin model đang kết nối (.env) và danh sách file Excel hiện có."""
+    xlsx_dir = contest_engine.xlsx_dir
+    files = []
+    if os.path.isdir(xlsx_dir):
+        files = sorted(
+            [f for f in os.listdir(xlsx_dir) if f.endswith(
+                ".xlsx") and not f.startswith("~$")]
+        )
+    return jsonify({
+        "provider": contest_engine.provider,
+        "model": contest_engine.model,
+        "base_url": contest_engine.base_url,
+        "xlsx_files": files,
+        "total_cost_usd": round(contest_engine.tracker.total_cost_usd, 6),
+    })
+
+
+@app.route("/api/contest/chat", methods=["POST"])
+@limiter.limit("30 per minute")
+def contest_chat():
+    """Xử lý câu hỏi đơn lẻ hoặc câu hỏi tự nhiên trên tệp Excel qua Pipeline MCP mới."""
+    try:
+        if INTERNAL_SECRET and request.headers.get("X-Internal-Secret") != INTERNAL_SECRET:
+            return jsonify({"error": "Không có quyền truy cập."}), 403
+
+        data = request.get_json(silent=True) or {}
+        query_text = (data.get("message") or "").strip()
+        file_name = (data.get("file_name") or "p4_t01.xlsx").strip()
+        query_id = (data.get("query_id") or "custom_q").strip()
+
+        if not query_text:
+            return jsonify({"error": "Vui lòng nhập câu hỏi cần truy vấn."}), 400
+
+        result = contest_engine.solve_question(
+            query_id=query_id,
+            file_name=file_name,
+            query_text=query_text,
+            include_natural=True,
+        )
+        return jsonify(result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Lỗi thực thi Pipeline: {str(e)}"}), 500
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ const port = process.env.PORT || 3000;
 //   (đã dùng `concurrently` để tự chạy 2 process riêng), tránh chạy
 //   trùng server.py 2 lần.
 // ============================================================
+
 function startPythonBackend() {
     const pythonCmd =
         process.env.PYTHON_BIN ||
@@ -201,6 +202,48 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     }
 });
 
+// ============================================================
+// MỞ RỘNG: FORWARD ROUTE CHO TAB AI THI ĐẤU (/api/contest/*)
+// ============================================================
+app.get("/api/contest/config", async (req, res) => {
+    try {
+        const response = await axios.get(
+            "http://localhost:5000/api/contest/config",
+            {
+                headers: process.env.INTERNAL_SECRET
+                    ? { "X-Internal-Secret": process.env.INTERNAL_SECRET }
+                    : {},
+            },
+        );
+        res.json(response.data);
+    } catch (err) {
+        res.status(502).json({
+            error: "Không thể lấy cấu hình từ Python Backend.",
+        });
+    }
+});
+
+app.post("/api/contest/chat", chatLimiter, async (req, res) => {
+    try {
+        const response = await axios.post(
+            "http://localhost:5000/api/contest/chat",
+            req.body,
+            {
+                timeout: 120_000,
+                headers: process.env.INTERNAL_SECRET
+                    ? { "X-Internal-Secret": process.env.INTERNAL_SECRET }
+                    : {},
+            },
+        );
+        res.json(response.data);
+    } catch (err) {
+        const status = err.response?.status || 502;
+        const msg =
+            err.response?.data?.error || "Lỗi kết nối tới dịch vụ AI Thi Đấu.";
+        res.status(status).json({ error: msg });
+    }
+});
+
 // --- Xử lý lỗi CORS bị chặn (từ middleware cors() phía trên) và JSON
 //     bị gửi sai định dạng (từ express.json()) gọn gàng, tránh lộ
 //     stack trace mặc định của Express ra ngoài client. ---
@@ -209,11 +252,9 @@ app.use((err, req, res, next) => {
         return res.status(403).json({ error: "Origin không được phép." });
     }
     if (err && err.type === "entity.parse.failed") {
-        return res
-            .status(400)
-            .json({
-                error: "Dữ liệu gửi lên không hợp lệ (JSON sai định dạng).",
-            });
+        return res.status(400).json({
+            error: "Dữ liệu gửi lên không hợp lệ (JSON sai định dạng).",
+        });
     }
     next(err);
 });

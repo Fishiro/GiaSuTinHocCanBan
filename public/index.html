@@ -20,9 +20,7 @@
         <script src="https://cdn.tailwindcss.com"></script>
 
         <!-- BẢO MẬT: reCAPTCHA v3 — hoàn toàn vô hình, chạy nền, không hiện
-             widget/checkbox nào cho người dùng. Thay YOUR_RECAPTCHA_SITE_KEY
-             bằng Site Key thật lấy tại https://www.google.com/recaptcha/admin
-             (chọn loại "reCAPTCHA v3" khi đăng ký). -->
+             widget/checkbox nào cho người dùng. -->
         <script src="https://www.google.com/recaptcha/api.js?render=6Lc_1aItAAAAAB-QDCxy0BpLBn-uyLqoni7MvEdL"></script>
 
         <!-- Cấu hình Tailwind -->
@@ -535,6 +533,26 @@
                             >Gia Sư Tin Học</span
                         >
                     </h1>
+
+                    <!-- CHUYỂN ĐỔI TAB: GIA SƯ (CŨ) vs AI THI ĐẤU (MỚI) -->
+                    <div class="px-4 pt-3">
+                        <div
+                            class="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-gray-200/70 dark:bg-slate-800/80 text-xs font-semibold"
+                        >
+                            <button
+                                id="tab-btn-tutor"
+                                class="py-2 rounded-xl bg-white dark:bg-slate-700 text-[#1B1B1E] dark:text-white shadow-sm transition-all"
+                            >
+                                Gia Sư
+                            </button>
+                            <button
+                                id="tab-btn-contest"
+                                class="py-2 rounded-xl text-gray-500 dark:text-gray-400 hover:text-[#1B1B1E] dark:hover:text-white transition-all"
+                            >
+                                AI Thi Đấu
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-3 relative z-10">
                     <!-- Nút Đoạn chat mới -->
@@ -593,6 +611,49 @@
                     Gia sư số
                 </span>
             </header>
+
+            <!-- THANH CÔNG CỤ TỐI GIẢN CHO TAB AI THI ĐẤU (Ẩn mặc định khi ở Tab Gia Sư) -->
+            <div
+                id="contest-toolbar"
+                class="hidden mx-4 md:mx-14 mt-6 px-5 py-3 rounded-2xl bg-white/80 dark:bg-[#1E293B]/80 backdrop-blur-xl shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs z-20 ui-locked"
+            >
+                <div class="flex items-center gap-3">
+                    <span
+                        class="font-semibold uppercase tracking-wider text-[#38BDF8]"
+                        >Tệp dữ liệu:</span
+                    >
+                    <select
+                        id="contest-file-select"
+                        class="bg-gray-100 dark:bg-slate-800 text-[#1B1B1E] dark:text-white px-3 py-1.5 rounded-xl font-medium focus:outline-none cursor-pointer"
+                    >
+                        <option value="p4_t01.xlsx">p4_t01.xlsx</option>
+                    </select>
+                    <input
+                        id="contest-query-id"
+                        type="text"
+                        value="p4_q001"
+                        placeholder="Mã câu hỏi (VD: p4_q001)"
+                        class="w-24 bg-gray-100 dark:bg-slate-800 text-[#1B1B1E] dark:text-white px-3 py-1.5 rounded-xl font-mono text-center focus:outline-none"
+                    />
+                </div>
+
+                <div
+                    class="flex items-center gap-4 text-gray-500 dark:text-gray-300 font-mono"
+                >
+                    <span
+                        id="contest-model-badge"
+                        class="px-2.5 py-1 rounded-lg bg-sky-500/10 text-[#38BDF8]"
+                    >
+                        Model: Đang tải...
+                    </span>
+                    <span
+                        id="contest-token-badge"
+                        class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    >
+                        0 tok • $0.0000 / $0.10
+                    </span>
+                </div>
+            </div>
 
             <main
                 class="flex-1 overflow-y-auto p-4 md:p-14 pb-44 md:pb-52 space-y-12 flex flex-col relative z-0"
@@ -696,7 +757,7 @@
         </div>
 
         <script>
-            // JELLY LOGIC (Vẫn giữ lại cho các phần tử khác nếu sau này bạn dùng)
+            // JELLY LOGIC (Vẫn giữ lại cho các phần tử khác nếu sau này dùng)
             document.querySelectorAll(".jelly-trigger").forEach((el) => {
                 el.addEventListener("mousedown", () => {
                     el.classList.remove("jelly-release");

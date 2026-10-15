@@ -11,7 +11,6 @@ const API_URL =
         ? "http://localhost:3000/api/chat"
         : "/api/chat";
 
-// --- BẢO MẬT: phải TRÙNG với Site Key đã điền trong index.html ---
 const RECAPTCHA_SITE_KEY = "6Lc_1aItAAAAAB-QDCxy0BpLBn-uyLqoni7MvEdL";
 
 // Lấy token reCAPTCHA v3 (vô hình — không cần user thao tác gì).
@@ -38,7 +37,7 @@ async function getCaptchaToken(action = "chat") {
 
 // --- QUẢN LÝ TRẠNG THÁI ---
 let currentAbortController = null;
-let currentTypingTimeout = null; // BIẾN MỚI: Dùng để quản lý tiến trình gõ phím của bot
+let currentTypingTimeout = null;
 let sessions = {};
 let currentSessionID = generateSessionID();
 let currentTitle = "Đoạn chat mới";
@@ -460,5 +459,164 @@ function addMessageToChat(sender, message, isTyping = false) {
         }
         chatMessages.appendChild(messageElement);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+}
+
+// ============================================================
+// MODULE MỞ RỘNG: TAB AI THI ĐẤU (EXCEL QA + MCP VERIFICATION)
+// Giữ nguyên toàn bộ hàm sendMessage() và session của Tab Gia Sư cũ.
+// ============================================================
+{
+    let activeMode = "tutor"; // "tutor" | "contest"
+    const tabTutorBtn = document.getElementById("tab-btn-tutor");
+    const tabContestBtn = document.getElementById("tab-btn-contest");
+    const contestToolbar = document.getElementById("contest-toolbar");
+    const fileSelect = document.getElementById("contest-file-select");
+    const queryIdInput = document.getElementById("contest-query-id");
+    const modelBadge = document.getElementById("contest-model-badge");
+    const tokenBadge = document.getElementById("contest-token-badge");
+
+    const CONTEST_API_BASE =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1"
+            ? "http://localhost:3000/api/contest"
+            : "/api/contest";
+
+    // Nạp thông tin cấu hình (.env) và danh sách file .xlsx cho Tab Thi Đấu
+    async function loadContestConfig() {
+        try {
+            const res = await fetch(`${CONTEST_API_BASE}/config`);
+            if (!res.ok) return;
+            const cfg = await res.json();
+            modelBadge.textContent = `${cfg.provider.toUpperCase()}: ${cfg.model}`;
+            if (Array.isArray(cfg.xlsx_files) && cfg.xlsx_files.length > 0) {
+                fileSelect.innerHTML = cfg.xlsx_files
+                    .map((f) => `<option value="${f}">${f}</option>`)
+                    .join("");
+            }
+        } catch (e) {
+            modelBadge.textContent = "Offline / Chưa kết nối";
+        }
+    }
+
+    // Chuyển đổi qua lại giữa 2 chế độ
+    function switchMode(mode) {
+        activeMode = mode;
+        const activeClasses = [
+            "bg-white",
+            "dark:bg-slate-700",
+            "text-[#1B1B1E]",
+            "dark:text-white",
+            "shadow-sm",
+        ];
+        const inactiveClasses = ["text-gray-500", "dark:text-gray-400"];
+
+        if (mode === "contest") {
+            tabContestBtn.classList.add(...activeClasses);
+            tabContestBtn.classList.remove(...inactiveClasses);
+            tabTutorBtn.classList.remove(...activeClasses);
+            tabTutorBtn.classList.add(...inactiveClasses);
+            contestToolbar.classList.remove("hidden");
+            userInput.placeholder =
+                "Nhập câu hỏi truy vấn bảng tính Excel (VD: Who was the second-youngest person...)";
+            loadContestConfig();
+        } else {
+            tabTutorBtn.classList.add(...activeClasses);
+            tabTutorBtn.classList.remove(...inactiveClasses);
+            tabContestBtn.classList.remove(...activeClasses);
+            tabContestBtn.classList.add(...inactiveClasses);
+            contestToolbar.classList.add("hidden");
+            userInput.placeholder = "Nhập câu hỏi của bạn...";
+        }
+    }
+
+    tabTutorBtn?.addEventListener("click", () => switchMode("tutor"));
+    tabContestBtn?.addEventListener("click", () => switchMode("contest"));
+
+    // Chặn sự kiện gửi tin nhắn khi đang ở Tab Thi Đấu để gọi sang Pipeline MCP
+    sendBtn.addEventListener(
+        "click",
+        (e) => {
+            if (activeMode === "contest") {
+                e.stopImmediatePropagation();
+                sendContestMessage();
+            }
+        },
+        true, // Sử dụng capture phase để ưu tiên điều hướng trước hàm sendMessage cũ
+    );
+
+    userInput.addEventListener(
+        "keydown",
+        (e) => {
+            if (activeMode === "contest" && e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                sendContestMessage();
+            }
+        },
+        true,
+    );
+
+    async function sendContestMessage() {
+        const queryText = userInput.value.trim();
+        if (!queryText) return;
+
+        const selectedFile = fileSelect.value || "p4_t01.xlsx";
+        const queryId = queryIdInput.value.trim() || "p4_q001";
+
+        // Hiển thị câu hỏi của người dùng
+        addMessageToChat("user", `[${selectedFile} | ${queryId}] ${queryText}`);
+        userInput.value = "";
+        autoResizeTextarea();
+
+        userInput.disabled = true;
+        sendBtn.disabled = true;
+        if (window.toggleAIWaitingState) window.toggleAIWaitingState(true);
+
+        try {
+            const res = await fetch(`${CONTEST_API_BASE}/chat`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    message: queryText,
+                    file_name: selectedFile,
+                    query_id: queryId,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok)
+                throw new Error(data.error || "Lỗi xử lý câu hỏi thi đấu.");
+
+            // Cập nhật đồng hồ đo Token & Chi phí USD
+            const usage = data.token_usage || {};
+            tokenBadge.textContent = `${usage.total_tokens || 0} tok • $${(usage.cost_usd || 0).toFixed(5)} / $0.10`;
+
+            // Render kết quả tối giản: Bước suy nghĩ (Collapsible) + Câu trả lời tự nhiên + Khối CSV chuẩn
+            const stepsHtml = (data.thinking_steps || [])
+                .map(
+                    (s) =>
+                        `<li class="text-xs text-gray-500 dark:text-gray-400 py-0.5 font-mono">${s}</li>`,
+                )
+                .join("");
+
+            const formattedReply = `
+<details class="mb-3 rounded-xl bg-gray-100/80 dark:bg-slate-800/70 px-3.5 py-2 text-xs cursor-pointer" open>
+    <summary class="font-semibold text-[#38BDF8] select-none">
+        ⚡ Tiến trình MCP & Kiểm định A/B (${data.elapsed_seconds}s)
+    </summary>
+    <ul class="mt-2 space-y-1 list-disc pl-4">${stepsHtml}</ul>
+</details>
+<p class="mb-2">${data.natural_reply}</p>
+<pre><code>${data.csv_block}</code></pre>
+            `.trim();
+
+            addMessageToChat("bot", formattedReply, false);
+        } catch (err) {
+            addMessageToChat("bot", `❌ **Lỗi:** ${err.message}`, false);
+        } finally {
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            if (window.toggleAIWaitingState) window.toggleAIWaitingState(false);
+        }
     }
 }

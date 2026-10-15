@@ -1,20 +1,39 @@
+# ============================================================
+# 1. WEB SERVER, API GATEWAY & BẢO MẬT (server.py)
+# ============================================================
 flask
-flask_cors
+flask-cors
 flask-limiter
 flask-talisman
+werkzeug
+gunicorn
 requests
 python-dotenv
+
+# ============================================================
+# 2. XỬ LÝ BẢNG TÍNH EXCEL & MCP ENGINE (mcp_excel_engine.py, main.py)
+# ============================================================
+openpyxl
+pandas
+
+# ============================================================
+# 3. AI, RAG & VECTOR DATABASE (server.py, prepare_data.py)
+# ============================================================
 google-genai
 langchain
+langchain-core
+langchain-text-splitters
 langchain-google-genai
 langchain-community
 faiss-cpu
+
+# ============================================================
+# 4. TRÍCH XUẤT TÀI LIỆU ĐA ĐỊNH DẠNG & OCR (prepare_data.py)
+# ============================================================
 pypdf
 pdfplumber
 python-docx
-openpyxl
-pandas
 python-pptx
-gunicorn
-pywin32; sys_platform == "win32"
 pytesseract
+Pillow
+pywin32; sys_platform == "win32"

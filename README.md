@@ -54,11 +54,11 @@ Trình duyệt (Vercel)
 
 **Vì sao tách 2 tầng thay vì 1 backend duy nhất?**
 
-| Lý do | Giải thích |
-|---|---|
-| Hệ sinh thái AI | Python có `langchain`, `faiss-cpu`, `google-genai` mạnh hơn hẳn Node cho RAG |
+| Lý do                       | Giải thích                                                                                                                          |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Hệ sinh thái AI             | Python có `langchain`, `faiss-cpu`, `google-genai` mạnh hơn hẳn Node cho RAG                                                        |
 | Giới hạn nền tảng free-tier | Render free-tier chỉ chạy được **1 start command** → `server.js` tự `spawn()` `server.py` làm subprocess con để "lách" giới hạn này |
-| Tách trách nhiệm | Node lo phục vụ tĩnh + gateway nhẹ; Python lo toàn bộ logic AI |
+| Tách trách nhiệm            | Node lo phục vụ tĩnh + gateway nhẹ; Python lo toàn bộ logic AI                                                                      |
 
 ---
 
@@ -91,25 +91,25 @@ faiss_index/ (index.faiss + index.pkl)
 Chi tiết kỹ thuật:
 
 1. **Trích xuất văn bản đa định dạng** (`extract_text_from_file`):
-   - `.docx` → đọc cả đoạn văn lẫn nội dung bảng (table).
-   - `.pptx` → đọc text trong từng shape của từng slide.
-   - `.xlsx`/`.csv` → dùng `pandas`, giữ định dạng bảng.
-   - `.pdf` → dùng `pdfplumber`; nếu trang không có text (PDF dạng ảnh scan) thì tự động **OCR** bằng Tesseract (hỗ trợ tiếng Việt).
-   - `.doc/.ppt/.xls` (Office đời cũ) → tự động convert sang định dạng mới qua **LibreOffice headless** (ưu tiên, đa nền tảng) hoặc **Microsoft Office COM** (chỉ Windows) trước khi đọc.
+    - `.docx` → đọc cả đoạn văn lẫn nội dung bảng (table).
+    - `.pptx` → đọc text trong từng shape của từng slide.
+    - `.xlsx`/`.csv` → dùng `pandas`, giữ định dạng bảng.
+    - `.pdf` → dùng `pdfplumber`; nếu trang không có text (PDF dạng ảnh scan) thì tự động **OCR** bằng Tesseract (hỗ trợ tiếng Việt).
+    - `.doc/.ppt/.xls` (Office đời cũ) → tự động convert sang định dạng mới qua **LibreOffice headless** (ưu tiên, đa nền tảng) hoặc **Microsoft Office COM** (chỉ Windows) trước khi đọc.
 
 2. **Chia nhỏ văn bản (chunking)**: dùng `RecursiveCharacterTextSplitter` với `chunk_size=1000, chunk_overlap=200`.
-   - Chunk quá lớn → tìm kiếm kém chính xác (mỗi đoạn chứa quá nhiều ý khác nhau).
-   - Chunk quá nhỏ → mất ngữ cảnh, trả lời rời rạc.
-   - `overlap=200` đảm bảo không cắt đứt ý đang dang dở giữa 2 đoạn liền kề.
+    - Chunk quá lớn → tìm kiếm kém chính xác (mỗi đoạn chứa quá nhiều ý khác nhau).
+    - Chunk quá nhỏ → mất ngữ cảnh, trả lời rời rạc.
+    - `overlap=200` đảm bảo không cắt đứt ý đang dang dở giữa 2 đoạn liền kề.
 
-3. **Embedding**: mỗi đoạn văn bản được Gemini Embedding API (`gemini-embedding-001`) biến thành 1 vector số nhiều chiều, đại diện cho *ý nghĩa* của đoạn đó.
+3. **Embedding**: mỗi đoạn văn bản được Gemini Embedding API (`gemini-embedding-001`) biến thành 1 vector số nhiều chiều, đại diện cho _ý nghĩa_ của đoạn đó.
 
 4. **Lưu vào FAISS**: thư viện tìm kiếm vector tốc độ cao của Meta, chạy hoàn toàn local (không cần server vector DB riêng) — phù hợp free-tier.
 
 5. **Manifest tăng dần** (`embed_manifest.json`): lưu hash SHA-256 của từng file đã nhúng. Lần chạy sau, script so sánh hash để:
-   - Bỏ qua file không đổi (tiết kiệm quota API).
-   - Chỉ nhúng lại file mới/đã sửa.
-   - Tự xoá vector của file đã bị xoá khỏi `learning_data/`.
+    - Bỏ qua file không đổi (tiết kiệm quota API).
+    - Chỉ nhúng lại file mới/đã sửa.
+    - Tự xoá vector của file đã bị xoá khỏi `learning_data/`.
 
 6. **Checkpoint sau mỗi file**: nếu mất mạng/lỗi quota giữa chừng, chạy lại script sẽ tiếp tục từ file dang dở, không mất tiến độ.
 
@@ -134,12 +134,12 @@ Câu trả lời
 
 Dự án dùng 2 Gemini API key (`GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`) với cơ chế fallback áp dụng ở **2 nơi độc lập**:
 
-| | Model chat (trả lời) | Model embedding (tìm kiếm RAG) |
-|---|---|---|
-| Dùng khi nào | Mỗi lần gọi trả lời câu hỏi | Lúc build FAISS index + mỗi câu hỏi user |
-| Cơ chế | `clients[current_key_index]`, xoay vòng khi gặp lỗi `429 / quota / exhausted` | Class `FallbackEmbeddings` tự viết, thử lần lượt từng key |
-| Bảo toàn gì | Copy lại **lịch sử hội thoại** sang session dùng key mới — user không mất ngữ cảnh chat | Không có trạng thái cần giữ, chỉ retry với key khác |
-| Chống race condition | `threading.Lock()` khi nhiều request cùng lúc kích hoạt fallback | Có lock riêng trong class `FallbackEmbeddings` |
+|                      | Model chat (trả lời)                                                                    | Model embedding (tìm kiếm RAG)                            |
+| -------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Dùng khi nào         | Mỗi lần gọi trả lời câu hỏi                                                             | Lúc build FAISS index + mỗi câu hỏi user                  |
+| Cơ chế               | `clients[current_key_index]`, xoay vòng khi gặp lỗi `429 / quota / exhausted`           | Class `FallbackEmbeddings` tự viết, thử lần lượt từng key |
+| Bảo toàn gì          | Copy lại **lịch sử hội thoại** sang session dùng key mới — user không mất ngữ cảnh chat | Không có trạng thái cần giữ, chỉ retry với key khác       |
+| Chống race condition | `threading.Lock()` khi nhiều request cùng lúc kích hoạt fallback                        | Có lock riêng trong class `FallbackEmbeddings`            |
 
 Ở script `prepare_data.py` (chuẩn bị dữ liệu offline) còn dùng thêm chiến lược **chủ động xoay vòng key theo từng batch** — không đợi đến khi bị lỗi mới đổi key, mà chủ động chia đều tải giữa các key ngay từ đầu để giảm khả năng bị giới hạn tốc độ (rate limit).
 
@@ -149,17 +149,17 @@ Dự án dùng 2 Gemini API key (`GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`) với c
 
 Áp dụng theo nguyên tắc **phòng thủ theo chiều sâu** (defense in depth) — nhiều lớp độc lập, lớp này chặn không được thì lớp sau vẫn chặn:
 
-| # | Lớp bảo vệ | Mục đích |
-|---|---|---|
-| 1 | **CORS whitelist** | Chỉ domain cụ thể (`giasutinhoccanban.tech`, `it-chatbot.vercel.app`...) được gọi API, khớp cấu hình ở cả Node và Flask |
-| 2 | **reCAPTCHA v3 vô hình** | Chấm điểm độ tin cậy 0.0–1.0 là người thật, không cần user thao tác gì; fail-open khi Google lỗi tạm thời để tránh chặn nhầm |
-| 3 | **Rate-limit theo IP** | Giới hạn 15 request/phút/IP, áp dụng ở **cả 2 tầng** (Node và Flask) — phòng trường hợp Flask bị gọi thẳng, bỏ qua Node |
-| 4 | **Ban IP tạm thời** | Nếu 1 IP xác minh captcha thất bại nhiều lần liên tiếp trong thời gian ngắn → chặn tạm, chống brute-force |
-| 5 | **Internal secret** (`X-Internal-Secret`) | Flask chỉ nhận request có kèm secret bí mật này, đảm bảo request thực sự đến từ Node gateway, không phải ai đó gọi thẳng |
-| 6 | **Giới hạn kích thước dữ liệu** | Giới hạn độ dài message, sessionID, dung lượng request body — cả ở Express lẫn Flask |
-| 7 | **Helmet** | Tự động thêm các HTTP security header (chống clickjacking, MIME-sniffing...) |
-| 8 | **`trust proxy` / `ProxyFix`** | Bắt buộc khi chạy sau reverse proxy (Render) để rate-limit nhận đúng IP thật của client, không phải IP nội bộ của proxy |
-| 9 | **Ẩn chi tiết lỗi nội bộ** | Không trả traceback/stack trace ra client, chỉ log chi tiết ở server |
+| #   | Lớp bảo vệ                                | Mục đích                                                                                                                     |
+| --- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **CORS whitelist**                        | Chỉ domain cụ thể (`giasutinhoccanban.tech`, `it-chatbot.vercel.app`...) được gọi API, khớp cấu hình ở cả Node và Flask      |
+| 2   | **reCAPTCHA v3 vô hình**                  | Chấm điểm độ tin cậy 0.0–1.0 là người thật, không cần user thao tác gì; fail-open khi Google lỗi tạm thời để tránh chặn nhầm |
+| 3   | **Rate-limit theo IP**                    | Giới hạn 15 request/phút/IP, áp dụng ở **cả 2 tầng** (Node và Flask) — phòng trường hợp Flask bị gọi thẳng, bỏ qua Node      |
+| 4   | **Ban IP tạm thời**                       | Nếu 1 IP xác minh captcha thất bại nhiều lần liên tiếp trong thời gian ngắn → chặn tạm, chống brute-force                    |
+| 5   | **Internal secret** (`X-Internal-Secret`) | Flask chỉ nhận request có kèm secret bí mật này, đảm bảo request thực sự đến từ Node gateway, không phải ai đó gọi thẳng     |
+| 6   | **Giới hạn kích thước dữ liệu**           | Giới hạn độ dài message, sessionID, dung lượng request body — cả ở Express lẫn Flask                                         |
+| 7   | **Helmet**                                | Tự động thêm các HTTP security header (chống clickjacking, MIME-sniffing...)                                                 |
+| 8   | **`trust proxy` / `ProxyFix`**            | Bắt buộc khi chạy sau reverse proxy (Render) để rate-limit nhận đúng IP thật của client, không phải IP nội bộ của proxy      |
+| 9   | **Ẩn chi tiết lỗi nội bộ**                | Không trả traceback/stack trace ra client, chỉ log chi tiết ở server                                                         |
 
 ---
 
@@ -187,18 +187,18 @@ IT-Chatbot/
 
 ## 🧰 Công nghệ sử dụng
 
-| Thành phần | Công nghệ |
-|---|---|
-| Frontend | HTML/CSS/JS thuần (không framework), Tailwind CDN, `marked.js` (render Markdown) |
-| Gateway | Node.js + Express 5 |
-| AI Backend | Python 3.11 + Flask |
-| LLM | Google Gemini (`gemini-flash-lite-latest`) |
-| Embedding | Google Gemini Embedding (`gemini-embedding-001`) |
-| Vector Database | FAISS (Facebook AI Similarity Search) — chạy local |
-| Orchestration RAG | LangChain (`langchain`, `langchain-google-genai`, `langchain-community`) |
-| Đọc tài liệu | `python-docx`, `python-pptx`, `openpyxl`, `pandas`, `pdfplumber`, `pypdf`, `pytesseract` (OCR) |
-| Bảo mật | Google reCAPTCHA v3, `express-rate-limit`, `flask-limiter`, `helmet` |
-| Deploy | Backend: **Render** — Frontend: **Vercel** |
+| Thành phần        | Công nghệ                                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| Frontend          | HTML/CSS/JS thuần (không framework), Tailwind CDN, `marked.js` (render Markdown)               |
+| Gateway           | Node.js + Express 5                                                                            |
+| AI Backend        | Python 3.11 + Flask                                                                            |
+| LLM               | Google Gemini (`gemini-flash-lite-latest`)                                                     |
+| Embedding         | Google Gemini Embedding (`gemini-embedding-001`)                                               |
+| Vector Database   | FAISS (Facebook AI Similarity Search) — chạy local                                             |
+| Orchestration RAG | LangChain (`langchain`, `langchain-google-genai`, `langchain-community`)                       |
+| Đọc tài liệu      | `python-docx`, `python-pptx`, `openpyxl`, `pandas`, `pdfplumber`, `pypdf`, `pytesseract` (OCR) |
+| Bảo mật           | Google reCAPTCHA v3, `express-rate-limit`, `flask-limiter`, `helmet`                           |
+| Deploy            | Backend: **Render** — Frontend: **Vercel**                                                     |
 
 ---
 
