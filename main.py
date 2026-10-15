@@ -94,19 +94,22 @@ def is_valid_saved_answer(ans: str) -> bool:
 
 def main():
     args = parse_args()
-    cli_provider = "openrouter" if args.openrouter_key else None
 
-    engine = ContestPipelineEngine(
-        xlsx_dir=args.xlsx_dir,
-        provider=cli_provider,
-        api_key=args.openrouter_key,
-        base_url=args.openrouter_base_url,
-        model=args.openrouter_model,
-    )
+    # Xây dựng kwargs chỉ gồm các giá trị khác None để không ghi đè default của ContestPipelineEngine
+    engine_kwargs = {"xlsx_dir": args.xlsx_dir}
+    if args.openrouter_key:
+        engine_kwargs["provider"] = "openrouter"
+        engine_kwargs["api_key"] = args.openrouter_key
+    if args.openrouter_model:
+        engine_kwargs["model"] = args.openrouter_model
+    if args.openrouter_base_url:
+        engine_kwargs["api_base"] = args.openrouter_base_url
+
+    engine = ContestPipelineEngine(**engine_kwargs)
 
     print(
-        f"[INIT] Provider: {engine.provider.upper()} | Model: {engine.model} | "
-        f"Base URL: {engine.base_url} | XLSX Dir: {args.xlsx_dir}",
+        f"[INIT] Provider: {str(engine.provider).upper()} | Model: {engine.model} | "
+        f"Base URL: {engine.api_base} | XLSX Dir: {args.xlsx_dir}",
         file=sys.stdout,
     )
 
@@ -135,6 +138,10 @@ def main():
     # Ghi khởi tạo ngay lập tức để đảm bảo file luôn tồn tại hợp lệ trên ổ đĩa
     save_submission_live(args.output, ordered_ids, answers_map)
     completed_count = 0
+
+    total_prompt_tokens = 0
+    total_completion_tokens = 0
+    total_cost_usd = 0.0
 
     # 2. Chạy từng câu và ghi đè trực tiếp ngay sau khi có kết quả
     try:
@@ -171,13 +178,18 @@ def main():
                 answers_map[q_id] = answer
                 completed_count += 1
 
+                usage = res.get("token_usage", {})
+                total_prompt_tokens += usage.get("prompt_tokens", 0)
+                total_completion_tokens += usage.get("completion_tokens", 0)
+                total_cost_usd += usage.get("cost_usd", 0.0)
+
                 # GHI ĐÈ TRỰC TIẾP XUỐNG FILE NGAY SAU KHI XONG CÂU HỎI NÀY
                 save_submission_live(args.output, ordered_ids, answers_map)
 
                 print(
                     f"[OK - ĐÃ GHI FILE] {q_id} -> {answer} | "
-                    f"Tokens: {res['token_usage']['total_tokens']} | "
-                    f"Cost: ${res['token_usage']['cost_usd']:.6f} | "
+                    f"Tokens: {usage.get('total_tokens', 0)} | "
+                    f"Cost: ${usage.get('cost_usd', 0.0):.6f} | "
                     f"Time: {res['elapsed_seconds']}s",
                     file=sys.stdout,
                 )
@@ -213,12 +225,18 @@ def main():
             file=sys.stdout,
         )
 
-    total_tokens = (
-        engine.tracker.total_prompt_tokens + engine.tracker.total_completion_tokens
-    )
+    tracker = getattr(engine, "tracker", None)
+    if tracker:
+        total_tokens = getattr(tracker, "total_prompt_tokens", 0) + \
+            getattr(tracker, "total_completion_tokens", 0)
+        total_cost = getattr(tracker, "total_cost_usd", 0.0)
+    else:
+        total_tokens = total_prompt_tokens + total_completion_tokens
+        total_cost = total_cost_usd
+
     print(
         f"=== ĐÃ XỬ LÝ {completed_count}/{len(ordered_ids)} CÂU HỎI | "
-        f"TỔNG TOKEN: {total_tokens} | TỔNG CHI PHÍ: ${engine.tracker.total_cost_usd:.6f} ===",
+        f"TỔNG TOKEN: {total_tokens} | TỔNG CHI PHÍ: ${total_cost:.6f} ===",
         file=sys.stdout,
     )
 
