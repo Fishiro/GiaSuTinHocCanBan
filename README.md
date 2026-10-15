@@ -10,7 +10,7 @@ Giải pháp trả lời tự động câu hỏi ngôn ngữ tự nhiên trên b
 
 ---
 
-## 🐳 1. Chạy bằng Docker (Chuẩn Chấm tự động của BTC)
+## 🐳 1. Chạy bằng Docker
 
 `Dockerfile` đặt tại thư mục gốc (`linux/amd64`, không dùng GPU) và nhận đầy đủ 6 tham số dòng lệnh:
 

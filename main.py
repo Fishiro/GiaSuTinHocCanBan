@@ -199,16 +199,17 @@ def main():
                 # Vẫn lưu lại file ngay cả khi câu hiện tại lỗi
                 save_submission_live(args.output, ordered_ids, answers_map)
 
-                # Nếu người dùng vừa bấm Eject model trên LM Studio (mất kết nối/400/404/503) -> Dừng an toàn
-                if engine.provider == "local" and any(
-                    k in err_msg.lower()
+                # Nếu người dùng vừa bấm Eject model trên LM Studio -> Dừng an toàn
+                # Bỏ qua các lỗi liên quan đến "timeout" hoặc "aborted" do chờ phản hồi quá lâu
+                err_lower = err_msg.lower()
+                is_timeout = "timeout" in err_lower or "read timed out" in err_lower
+
+                if engine.provider == "local" and not is_timeout and any(
+                    k in err_lower
                     for k in [
-                        "connection",
-                        "refused",
-                        "aborted",
-                        "disconnected",
-                        "no models loaded",
-                        "model not found",
+                        "connection refused",  # Chỉ dừng khi server tắt hẳn, không bắt "connection aborted"
+                        "no models loaded",   # Trạng thái thực sự khi bấm Eject trên LM Studio
+                        "model not found"
                     ]
                 ):
                     print(
