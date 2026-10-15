@@ -28,7 +28,7 @@ docker run --rm \
   --output /output/submission.csv \
   --openrouter-key "<OPENROUTER_API_KEY>" \
   --openrouter-model "qwen/qwen3.7-flash" \
-  --openrouter-base-url "[https://openrouter.ai/api/v1](https://openrouter.ai/api/v1)"
+  --openrouter-base-url "https://openrouter.ai/api/v1"
 ```
 
 ---
@@ -50,7 +50,7 @@ python main.py \
   --output ./submission.csv \
   --openrouter-key "<OPENROUTER_API_KEY>" \
   --openrouter-model "qwen/qwen3.7-flash" \
-  --openrouter-base-url "[https://openrouter.ai/api/v1](https://openrouter.ai/api/v1)"
+  --openrouter-base-url "https://openrouter.ai/api/v1"
 ```
 
 **Chạy với Local LLM (LM Studio `http://127.0.0.1:1234/v1`):**
@@ -62,32 +62,6 @@ python main.py --xlsx-dir ./test_xlsx --queries ./queries.json --output ./submis
 # Chạy tiếp từ câu đang dở nếu ngắt kết nối giữa chừng (bỏ qua các câu đã giải xong)
 python main.py --xlsx-dir ./test_xlsx --queries ./queries.json --output ./submission.csv --resume
 ```
-
----
-
-## 🌐 3. Giao diện Web Trực quan (Tab "AI Thi Đấu")
-
-1. Cấu hình tệp `.env` ở thư mục gốc:
-
-```env
-CONTEST_AI_PROVIDER=openrouter          # Chọn "openrouter" hoặc "local"
-OPENROUTER_API_KEY=sk-or-v1-...         # Điền khóa API OpenRouter tại đây
-OPENROUTER_MODEL=qwen/qwen3.7-flash
-OPENROUTER_BASE_URL=[https://openrouter.ai/api/v1](https://openrouter.ai/api/v1)
-
-LOCAL_LLM_BASE_URL=[http://127.0.0.1:1234/v1](http://127.0.0.1:1234/v1)
-LOCAL_LLM_MODEL=qwen/qwen3.5-9b
-CONTEST_XLSX_DIR=./test_xlsx
-```
-
-2. Khởi chạy máy chủ và truy cập `http://localhost:3000` (chọn tab **AI Thi Đấu**):
-
-```bash
-npm install
-npm run dev
-```
-
----
 
 ---
 
