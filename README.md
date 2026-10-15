@@ -1,64 +1,47 @@
-# 🏆 Bài dự thi AI 2026 — Bảng C (Mã đội: AI26C0084)
+# 🏆 AI 2026 — Bảng C (Mã đội: AI26C0084)
 
 **Chủ đề 2: Hỏi đáp trên bảng tính Excel (Excel Question Answering)**
 
-Giải pháp tự động trả lời câu hỏi bằng ngôn ngữ tự nhiên trên dữ liệu bảng tính Excel phức tạp (nhiều trang tính, nhiều bảng trên một sheet, tiêu đề phân cấp, ô gộp) sử dụng kiến trúc **MCP-Driven Hybrid Verification Pipeline**. Hệ thống kết hợp tiền xử lý cấu trúc bảng (0 token), suy luận LLM (`qwen/qwen3.7-flash`) và cổng kiểm định kép (xác minh số học bằng Python/Pandas + chuẩn hóa định dạng CSV).
+Giải pháp trả lời tự động câu hỏi ngôn ngữ tự nhiên trên bảng tính Excel phức tạp (nhiều sheet, tiêu đề phân cấp, ô gộp) bằng kiến trúc **MCP-Driven Hybrid Verification Pipeline**:
+
+- **Tiền xử lý Excel (0 Token):** Tự động tháo ô gộp (`unmerge`), chuẩn hóa ngày tháng/số học và nén bảng theo tọa độ `R{hàng}, C{cột}`.
+- **Kiểm định Kép (Nhánh A & B):** Thực thi biểu thức Python/Pandas để xác minh kết quả tính toán (Nhánh A) và chuẩn hóa định dạng đầu ra `id,answer` bằng Regex/Retry (Nhánh B).
+- **Tối ưu Tài nguyên:** Ghi đè kết quả trực tiếp xuống `submission.csv` ngay sau từng câu hỏi; sử dụng RAM `< 200 MB` (giới hạn `< 1 GB`) và chi phí `< $0.002/câu` (giới hạn `< $0.10/câu`).
 
 ---
 
-## 📦 1. Cấu trúc Bài nộp (`AI26C0084.zip`)
+## 🐳 1. Chạy bằng Docker (Chuẩn Chấm tự động của BTC)
 
-```text
-AI26C0084.zip
-├── Dockerfile              # Cấu hình Docker chuẩn linux/amd64 (không dùng GPU, RAM < 1GB)
-├── .dockerignore           # Loại bỏ dữ liệu thừa và khóa cá nhân khi build image
-├── main.py                 # Entrypoint chính nhận tham số dòng lệnh và xuất submission.csv
-├── mcp_excel_engine.py     # Lõi MCP Server nội bộ, tiền xử lý Excel, kiểm định A/B & đo Token
-├── requirements.txt        # Danh sách thư viện Python phụ thuộc
-├── README.md               # Tài liệu hướng dẫn cài đặt, cấu hình và chạy chương trình
-├── server.py               # (Mở rộng) Backend Flask phục vụ giao diện Web trực quan
-├── server.js               # (Mở rộng) Node.js Gateway phục vụ giao diện Web
-├── package.json            # (Mở rộng) Cấu hình dependencies cho giao diện Web
-└── public/                 # (Mở rộng) Giao diện Web tối giản có Tab "AI Thi Đấu" riêng
-```
-
----
-
-## 🐳 2. Chạy bằng Docker (Chuẩn Hệ thống Chấm tự động của BTC)
-
-`Dockerfile` đặt ngay tại thư mục gốc của tệp nén, sử dụng `ENTRYPOINT ["python", "main.py"]` và nhận đầy đủ 6 tham số dòng lệnh của Ban Tổ chức:
+`Dockerfile` đặt tại thư mục gốc (`linux/amd64`, không dùng GPU) và nhận đầy đủ 6 tham số dòng lệnh:
 
 ```bash
-# Bước 1: Build Docker image (kiến trúc linux/amd64, không cần GPU)
+# 1. Build image
 docker build --platform linux/amd64 -t ai26c0084 .
 
-# Bước 2: Chạy container chấm bài
+# 2. Chạy container
 docker run --rm \
-  -v /duong/dan/input:/input:ro \
-  -v /duong/dan/output:/output \
+  -v /path/to/input:/input:ro \
+  -v /path/to/output:/output \
   ai26c0084 \
   --xlsx-dir /input/xlsx_files \
   --queries /input/queries.json \
   --output /output/submission.csv \
   --openrouter-key "<OPENROUTER_API_KEY>" \
   --openrouter-model "qwen/qwen3.7-flash" \
-  --openrouter-base-url "https://openrouter.ai/api/v1"
+  --openrouter-base-url "[https://openrouter.ai/api/v1](https://openrouter.ai/api/v1)"
 ```
 
 ---
 
-## 💻 3. Cài đặt & Chạy Trực tiếp bằng Dòng lệnh (CLI)
+## 💻 2. Cài đặt & Chạy bằng Dòng lệnh (CLI)
 
-### 3.1. Cài đặt môi trường
-
-- Yêu cầu: **Python 3.11+**
-- Cài đặt thư viện:
+**Cài đặt thư viện (Yêu cầu Python 3.11+):**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3.2. Chạy với OpenRouter API (Model `qwen/qwen3.7-flash`)
+**Chạy với OpenRouter (`qwen/qwen3.7-flash`):**
 
 ```bash
 python main.py \
@@ -67,72 +50,44 @@ python main.py \
   --output ./submission.csv \
   --openrouter-key "<OPENROUTER_API_KEY>" \
   --openrouter-model "qwen/qwen3.7-flash" \
-  --openrouter-base-url "https://openrouter.ai/api/v1"
+  --openrouter-base-url "[https://openrouter.ai/api/v1](https://openrouter.ai/api/v1)"
 ```
 
-### 3.3. Chạy thử nghiệm Local với LM Studio (`http://127.0.0.1:1234/v1`)
-
-Khi không truyền `--openrouter-key` trên dòng lệnh, chương trình tự động đọc cấu hình trong `.env` và kết nối tới máy chủ LLM cục bộ (mặc định `http://127.0.0.1:1234/v1`):
+**Chạy với Local LLM (LM Studio `http://127.0.0.1:1234/v1`):**
 
 ```bash
-python main.py \
-  --xlsx-dir ./test_xlsx \
-  --queries ./queries.json \
-  --output ./submission.csv
+# Chạy mới (tự động ghi đè trực tiếp từng câu vào submission.csv)
+python main.py --xlsx-dir ./test_xlsx --queries ./queries.json --output ./submission.csv
+
+# Chạy tiếp từ câu đang dở nếu ngắt kết nối giữa chừng (bỏ qua các câu đã giải xong)
+python main.py --xlsx-dir ./test_xlsx --queries ./queries.json --output ./submission.csv --resume
 ```
 
 ---
 
-## 🌐 4. Giao diện Web Trực quan (Tab "AI Thi Đấu")
+## 🌐 3. Giao diện Web Trực quan (Tab "AI Thi Đấu")
 
-Dự án tích hợp sẵn một tab giao diện tối giản để Ban Giám khảo theo dõi trực quan từng bước suy luận (**Thinking Steps**), kết quả xác minh dữ liệu và lượng **Token / Chi phí USD** theo thời gian thực:
-
-1. Tạo tệp `.env` tại thư mục gốc (hoặc chỉnh sửa tệp `.env` sẵn có):
+1. Cấu hình tệp `.env` ở thư mục gốc:
 
 ```env
-# Chọn "openrouter" khi chấm bằng API OpenRouter, hoặc "local" khi test LM Studio
-CONTEST_AI_PROVIDER=openrouter
-
-# --- Cấu hình OpenRouter (BGK chỉ cần thay khóa API tại đây) ---
-OPENROUTER_API_KEY=sk-or-v1-thay-key-tai-day
+CONTEST_AI_PROVIDER=openrouter          # Chọn "openrouter" hoặc "local"
+OPENROUTER_API_KEY=sk-or-v1-...         # Điền khóa API OpenRouter tại đây
 OPENROUTER_MODEL=qwen/qwen3.7-flash
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_BASE_URL=[https://openrouter.ai/api/v1](https://openrouter.ai/api/v1)
 
-# --- Cấu hình LM Studio Local ---
-LOCAL_LLM_BASE_URL=http://127.0.0.1:1234/v1
+LOCAL_LLM_BASE_URL=[http://127.0.0.1:1234/v1](http://127.0.0.1:1234/v1)
 LOCAL_LLM_MODEL=qwen/qwen3.5-9b
-LOCAL_LLM_API_KEY=lm-studio
-
-# --- Đường dẫn dữ liệu mặc định ---
 CONTEST_XLSX_DIR=./test_xlsx
-CONTEST_QUERIES_FILE=./queries.json
-CONTEST_OUTPUT_CSV=./submission.csv
 ```
 
-2. Khởi chạy máy chủ Web:
+2. Khởi chạy máy chủ và truy cập `http://localhost:3000` (chọn tab **AI Thi Đấu**):
 
 ```bash
 npm install
 npm run dev
 ```
 
-3. Mở trình duyệt tại `http://localhost:3000` và chuyển sang tab **AI Thi Đấu** ở góc trên thanh điều hướng bên trái.
-
 ---
-
-## 🧠 5. Nguyên lý Hoạt động & Tối ưu Tiêu chí Xếp hạng
-
-1. **Bước 1 — Tiền xử lý Bảng tính qua MCP Server nội bộ (0 Token):**
-    - Tự động tháo toàn bộ ô gộp (`unmerge_cells`) và điền đầy giá trị vào vùng gộp (Forward-fill) để bảo toàn ngữ cảnh tiêu đề phân cấp nhiều tầng.
-    - Chuẩn hóa ngày tháng về `YYYY-MM-DD`, số nguyên về dạng chuẩn và nén bảng thành tọa độ `R{hàng}: C{cột}:Giá_trị`, giảm hơn 75% lượng token đầu vào.
-2. **Bước 2 — Suy luận kết hợp Sinh biểu thức Xác minh (`qwen/qwen3.7-flash`):**
-    - Mô hình xác định tọa độ ô dữ liệu liên quan và sinh biểu thức tính toán Python (`pandas_verify_expr`) cùng đáp án dự kiến (`csv_answer`).
-3. **Bước 3 — Cổng Kiểm định Kép (Dual-Validation Gate A & B):**
-    - **Kiểm định Dữ liệu (Nhánh A):** Thực thi biểu thức số học (`num(r, c)`, `cell(r, c)`, `sum`, `abs`, `round`, `sorted`) trực tiếp trên dữ liệu thật bằng Python để loại bỏ hoàn toàn sai số tính nhẩm của LLM.
-    - **Kiểm định Định dạng (Nhánh B):** Kiểm tra nghiêm ngặt ràng buộc của câu hỏi (số nguyên không dấu phẩy, làm tròn 2 chữ số thập phân, `Yes`/`No`, xếp hạng phân tách bằng `, `). Tự động làm sạch bằng Regex (0 token) hoặc chỉ gọi retry tối đa 1 lần nếu sai cấu trúc.
-4. **Đảm bảo Giới hạn Tài nguyên:**
-    - **Chi phí:** Trung bình `~0.0003 - 0.0015 USD / câu hỏi` (thấp hơn rất nhiều so với trần `0.10 USD / câu hỏi`).
-    - **Bộ nhớ & Thời gian:** Cơ chế LRU Cache giới hạn tối đa 5 tệp Excel trong bộ nhớ giúp RAM luôn dưới `200 MB` (giới hạn `< 1 GB`); tổng thời gian chạy 20 câu hỏi đạt `~1 - 3 phút` (giới hạn `< 40 phút`).
 
 ---
 
